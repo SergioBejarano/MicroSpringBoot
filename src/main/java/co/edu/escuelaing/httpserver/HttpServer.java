@@ -18,26 +18,34 @@ public class HttpServer {
 
     public static Map<String, Method> services = new HashMap();
 
-    public static void loadServices(String[] args) {
+    public static void loadServices() {
         try {
-            Class c = Class.forName(args[0]);
-
-            if (c.isAnnotationPresent(RestController.class)) {
-                Method[] methods = c.getDeclaredMethods();
-                for (Method m : methods) {
-                    if (m.isAnnotationPresent(GetMapping.class)) {
-                        String mapping = m.getAnnotation(GetMapping.class).value();
-                        services.put(mapping, m);
+            String baseDir = "co/edu/escuelaing/microspringboot/examples";
+            File dir = new File(HttpServer.class.getClassLoader().getResource(baseDir).toURI());
+            File[] files = dir.listFiles((d, name) -> name.endsWith(".class"));
+            if (files != null) {
+                for (File file : files) {
+                    String className = "co.edu.escuelaing.microspringboot.examples."
+                            + file.getName().replace(".class", "");
+                    Class<?> c = Class.forName(className);
+                    if (c.isAnnotationPresent(RestController.class)) {
+                        Method[] methods = c.getDeclaredMethods();
+                        for (Method m : methods) {
+                            if (m.isAnnotationPresent(GetMapping.class)) {
+                                String mapping = m.getAnnotation(GetMapping.class).value();
+                                services.put(mapping, m);
+                            }
+                        }
                     }
                 }
             }
-        } catch (ClassNotFoundException ex) {
+        } catch (Exception ex) {
             System.getLogger(HttpServer.class.getName()).log(System.Logger.Level.ERROR, (String) null, ex);
         }
     }
 
     public static void runServer(String[] args) throws IOException, URISyntaxException {
-        loadServices(args);
+        loadServices();
 
         ServerSocket serverSocket = null;
         try {
@@ -58,13 +66,12 @@ public class HttpServer {
                 System.exit(1);
             }
 
-            PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
-            BufferedReader in = new BufferedReader(
-                    new InputStreamReader(
-                            clientSocket.getInputStream()));
-            String inputLine, outputLine;
+            InputStream inStream = clientSocket.getInputStream();
+            OutputStream rawOut = clientSocket.getOutputStream();
+            PrintWriter out = new PrintWriter(rawOut, true);
+            BufferedReader in = new BufferedReader(new InputStreamReader(inStream));
 
-            String path = null;
+            String inputLine;
             boolean firstline = true;
             URI requri = null;
 
@@ -81,13 +88,11 @@ public class HttpServer {
             }
 
             if (requri.getPath().startsWith("/app")) {
-                outputLine = invokeService(requri);
+                String response = invokeService(requri);
+                out.println(response);
             } else {
-                //Leo del disco
-
-                outputLine = defaultResponse();
+                serveStaticFile(requri.getPath(), rawOut);
             }
-            out.println(outputLine);
 
             out.close();
             in.close();
@@ -107,15 +112,14 @@ public class HttpServer {
             Method m = services.get(servicePath);
             String[] argValues = null;
             RequestParam rp = (RequestParam) m.getParameterAnnotations()[0][0];
-            if (requri.getQuery() == null){
-                argValues = new String[]{rp.defaultValue()};
-            } else{           
-                String queryParamName = rp.value();                  
-                argValues = new String[]{req.getValue(queryParamName)};
+            if (requri.getQuery() == null) {
+                argValues = new String[] { rp.defaultValue() };
+            } else {
+                String queryParamName = rp.value();
+                argValues = new String[] { req.getValue(queryParamName) };
             }
             return header + m.invoke(null, argValues);
-            
-            
+
         } catch (IllegalAccessException ex) {
             System.getLogger(HttpServer.class.getName()).log(System.Logger.Level.ERROR, (String) null, ex);
         } catch (InvocationTargetException ex) {
@@ -124,7 +128,73 @@ public class HttpServer {
         return header + "Error!";
     }
 
-    public static void staticfiles(String localFilesPath) {
+    private static void serveStaticFile(String path, OutputStream rawOut) throws IOException {
+        if (path.equals("/")) {
+            path = "/index.html";
+        }
+
+        try {
+            URL fileURL = HttpServer.class.getClassLoader().getResource("webroot" + path);
+            if (fileURL == null) {
+                send404(rawOut);
+                return;
+            }
+
+            File file = new File(fileURL.toURI());
+            if (!file.exists() || file.isDirectory()) {
+                send404(rawOut);
+                return;
+            }
+
+            String mimeType = guessContentType(path);
+            byte[] data = readFileBytes(file);
+
+            String header = "HTTP/1.1 200 OK\r\n"
+                    + "Content-Type: " + mimeType + "\r\n"
+                    + "Content-Length: " + data.length + "\r\n"
+                    + "\r\n";
+
+            rawOut.write(header.getBytes());
+            rawOut.write(data);
+            rawOut.flush();
+
+        } catch (Exception e) {
+            send404(rawOut);
+        }
+    }
+
+    private static void send404(OutputStream rawOut) throws IOException {
+        String notFound = "HTTP/1.1 404 Not Found\r\n"
+                + "Content-Type: text/html\r\n\r\n"
+                + "<h1>404 Not Found</h1>";
+        rawOut.write(notFound.getBytes());
+        rawOut.flush();
+    }
+
+    private static byte[] readFileBytes(File file) throws IOException {
+        FileInputStream fis = new FileInputStream(file);
+        byte[] data = fis.readAllBytes();
+        fis.close();
+        return data;
+    }
+
+    private static String guessContentType(String path) {
+        if (path.endsWith(".html") || path.endsWith(".htm")) {
+            return "text/html";
+        } else if (path.endsWith(".css")) {
+            return "text/css";
+        } else if (path.endsWith(".js")) {
+            return "application/javascript";
+        } else if (path.endsWith(".png")) {
+            return "image/png";
+        } else if (path.endsWith(".jpg") || path.endsWith(".jpeg")) {
+            return "image/jpeg";
+        } else if (path.endsWith(".gif")) {
+            return "image/gif";
+        } else if (path.endsWith(".ico")) {
+            return "image/x-icon";
+        }
+        return "application/octet-stream";
     }
 
     public static void start(String[] args) throws IOException, URISyntaxException {

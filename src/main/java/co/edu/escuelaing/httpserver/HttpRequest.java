@@ -7,7 +7,7 @@ import java.net.URI;
  * @author sergio.bejarano-r
  */
 public class HttpRequest {
-    
+
     URI requri = null;
 
     HttpRequest(URI requri) {
@@ -15,9 +15,8 @@ public class HttpRequest {
     }
 
     public String getValue(String paramName) {
-        
-        //Extrae el valor de paramName desde el query.
-        String paramValue = requri.getQuery().split("=")[1]; //Ejemplo: /app/hello?name=jhon
+
+        String paramValue = requri.getQuery().split("=")[1];
         return paramValue;
     }
 
