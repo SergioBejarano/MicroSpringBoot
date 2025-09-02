@@ -18,6 +18,9 @@ public class HttpServer {
 
     public static Map<String, Method> services = new HashMap();
 
+    /**
+     * Loads services annotated with @RestController and @GetMapping.
+     */
     public static void loadServices() {
         try {
             String baseDir = "co/edu/escuelaing/microspringboot/examples";
@@ -44,6 +47,9 @@ public class HttpServer {
         }
     }
 
+    /**
+     * Starts the HTTP server.
+     */
     public static void runServer(String[] args) throws IOException, URISyntaxException {
         loadServices();
 
@@ -101,6 +107,12 @@ public class HttpServer {
         serverSocket.close();
     }
 
+    /**
+     * Invokes the appropriate service method based on the request URI.
+     *
+     * @param requri the request URI
+     * @return the HTTP response as a string
+     */
     private static String invokeService(URI requri) {
         String header = "HTTP/1.1 200 OK\n\r"
                 + "content-type: text/html\n\r"
@@ -128,6 +140,12 @@ public class HttpServer {
         return header + "Error!";
     }
 
+    /**
+     * Serves a static file to the client.
+     *
+     * @param path   the file path
+     * @param rawOut the output stream to write the response
+     */
     private static void serveStaticFile(String path, OutputStream rawOut) throws IOException {
         if (path.equals("/")) {
             path = "/index.html";
@@ -163,6 +181,11 @@ public class HttpServer {
         }
     }
 
+    /**
+     * Sends a 404 Not Found response.
+     *
+     * @param rawOut the output stream to write the response
+     */
     private static void send404(OutputStream rawOut) throws IOException {
         String notFound = "HTTP/1.1 404 Not Found\r\n"
                 + "Content-Type: text/html\r\n\r\n"
@@ -171,6 +194,12 @@ public class HttpServer {
         rawOut.flush();
     }
 
+    /**
+     * Reads the bytes of a file.
+     *
+     * @param file the file to read
+     * @return the file contents as a byte array
+     */
     private static byte[] readFileBytes(File file) throws IOException {
         FileInputStream fis = new FileInputStream(file);
         byte[] data = fis.readAllBytes();
@@ -178,6 +207,12 @@ public class HttpServer {
         return data;
     }
 
+    /**
+     * Guesses the content type based on the file extension.
+     *
+     * @param path the file path
+     * @return the guessed content type
+     */
     private static String guessContentType(String path) {
         if (path.endsWith(".html") || path.endsWith(".htm")) {
             return "text/html";
@@ -197,6 +232,11 @@ public class HttpServer {
         return "application/octet-stream";
     }
 
+    /**
+     * Starts the HTTP server.
+     *
+     * @param args command line arguments
+     */
     public static void start(String[] args) throws IOException, URISyntaxException {
         runServer(args);
     }
